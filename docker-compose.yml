@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+web:
+# Use the image name that your CI/CD pipeline will build and push.
+# Replace 'YOUR_DOCKERHUB_USERNAME' with your actual username.
+image: your-dockerhub-username/cicd-flask-app:latest
+container_name: cicd-flask-app
+# Set the APP_VERSION environment variable to verify local deployment
+environment:
+- APP_VERSION=local-deploy-v1.0.0
+ports:
+- "8080:5000" # Map host port 8080 to container port 5000
+restart: always

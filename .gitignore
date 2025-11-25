@@ -1,0 +1,37 @@
+dependencies
+
+/node_modules
+/venv
+/env
+/htmlcov/
+
+Python
+
+pycache/
+*.py[co]
+*.egg
+.tox/
+.mypy_cache/
+.pytest_cache/
+
+Editor/OS artifacts
+
+.DS_Store
+.vscode/
+
+Build artifacts
+
+/dist/
+/build/
+
+Docker/CI artifacts (often ignored, but not strictly needed for this simple setup)
+
+This keeps the image build process clean if you run local builds outside of the CI.
+
+If you run 'docker compose up' locally, you will see a container image, but
+
+we don't need to ignore that itself.
+
+Configuration files that might contain secrets (we use GitHub Secrets instead)
+
+.env
