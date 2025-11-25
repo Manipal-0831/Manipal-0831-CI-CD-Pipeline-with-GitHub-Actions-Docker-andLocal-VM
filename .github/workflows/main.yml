@@ -1,4 +1,37 @@
-- name: Set up Python
+name: Build, Test, and Push to Docker Hub
+
+1. Trigger the workflow on pushes to the main branch
+
+on:
+push:
+branches:
+- main
+
+Define environment variables to be used throughout the workflow
+
+env:
+DOCKER_IMAGE_NAME: cicd-flask-app
+DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+
+Automatically generate a unique tag based on the commit SHA
+
+IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+
+===============================================
+
+1. TEST JOB: Runs pytest to ensure code quality
+
+===============================================
+
+test:
+runs-on: ubuntu-latest
+steps:
+- name: Checkout Code
+uses: actions/checkout@v4
+
+  - name: Set up Python
     uses: actions/setup-python@v5
     with:
       python-version: '3.11'
@@ -9,7 +42,23 @@
   - name: Run Pytest Tests
     # The exit code determines if this job passes or fails
     run: pytest
-- name: Log in to Docker Hub
+
+
+===============================================
+
+2. BUILD & PUSH JOB: Builds the Docker image and pushes to Docker Hub
+
+===============================================
+
+build_and_push:
+# This job only runs if the 'test' job succeeded
+needs: test
+runs-on: ubuntu-latest
+steps:
+- name: Checkout Code
+uses: actions/checkout@v4
+
+  - name: Log in to Docker Hub
     # Uses secrets for security
     uses: docker/login-action@v3
     with:
@@ -21,6 +70,7 @@
     with:
       context: .
       push: true
+      # Note: The tags section uses a pipe (|) for multi-line strings, which is very specific.
       tags: |
         ${{ env.DOCKER_HUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
         ${{ env.DOCKER_HUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
@@ -32,3 +82,27 @@
     run: |
       echo "Successfully pushed image to Docker Hub:"
       echo "https://hub.docker.com/r/${{ env.DOCKER_HUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}"
+
+
+===============================================
+
+3. DEPLOY GUIDE (Informational Job)
+
+===============================================
+
+deploy_local_guide:
+needs: build_and_push
+runs-on: ubuntu-latest
+steps:
+- name: Deployment Instructions
+run: |
+echo "#########################################################"
+echo "## CI/CD Pipeline Complete: Image is Ready for Deployment"
+echo "#########################################################"
+echo ""
+echo "To deploy the image locally, run these commands:"
+echo "1. Update 'docker-compose.yml' with your Docker Hub username."
+echo "2. Run: docker compose up -d"
+echo "3. Access the app at: http://localhost:8080"
+echo ""
+echo "Image Tag (Commit SHA): ${{ env.IMAGE_TAG }}"
