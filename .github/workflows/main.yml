@@ -1,108 +1,82 @@
 name: Build, Test, and Push to Docker Hub
 
-1. Trigger the workflow on pushes to the main branch
-
+# Trigger the workflow on pushes to the main branch
 on:
-push:
-branches:
-- main
+  push:
+    branches:
+      - main
 
-Define environment variables to be used throughout the workflow
-
+# Define environment variables to be used throughout the workflow
 env:
-DOCKER_IMAGE_NAME: cicd-flask-app
-DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-
-Automatically generate a unique tag based on the commit SHA
-
-IMAGE_TAG: ${{ github.sha }}
+  DOCKER_IMAGE_NAME: cicd-flask-app
+  DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  # Automatically generate a unique tag based on the commit SHA
+  IMAGE_TAG: ${{ github.sha }}
 
 jobs:
+  # 1. TEST JOB: Runs pytest to ensure code quality
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-===============================================
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-1. TEST JOB: Runs pytest to ensure code quality
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
 
-===============================================
+      - name: Run Pytest Tests
+        run: pytest
 
-test:
-runs-on: ubuntu-latest
-steps:
-- name: Checkout Code
-uses: actions/checkout@v4
+  # 2. BUILD & PUSH JOB: Builds the Docker image and pushes to Docker Hub
+  build_and_push:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-  - name: Set up Python
-    uses: actions/setup-python@v5
-    with:
-      python-version: '3.11'
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-  - name: Install Dependencies
-    run: pip install -r requirements.txt
+      - name: Build and Push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          # Tags the image with both the full SHA and the 'latest' tag
+          tags: |
+            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+          # Passes the commit SHA as APP_VERSION environment variable into the Docker build process
+          build-args: |
+            APP_VERSION=${{ env.IMAGE_TAG }}
 
-  - name: Run Pytest Tests
-    # The exit code determines if this job passes or fails
-    run: pytest
+      - name: Output Docker Image Link
+        run: |
+          echo "Successfully pushed image to Docker Hub:"
+          echo "https://hub.docker.com/r/${{ env.DOCKER_HUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
 
-
-===============================================
-
-2. BUILD & PUSH JOB: Builds the Docker image and pushes to Docker Hub
-
-===============================================
-
-build_and_push:
-# This job only runs if the 'test' job succeeded
-needs: test
-runs-on: ubuntu-latest
-steps:
-- name: Checkout Code
-uses: actions/checkout@v4
-
-  - name: Log in to Docker Hub
-    # Uses secrets for security
-    uses: docker/login-action@v3
-    with:
-      username: ${{ env.DOCKER_HUB_USERNAME }}
-      password: ${{ secrets.DOCKER_PASSWORD }}
-
-  - name: Build and Push Docker image (with SHA tag)
-    uses: docker/build-push-action@v5
-    with:
-      context: .
-      push: true
-      # Note: The tags section uses a pipe (|) for multi-line strings, which is very specific.
-      tags: |
-        ${{ env.DOCKER_HUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-        ${{ env.DOCKER_HUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
-      # Pass the commit SHA as an environment variable into the image itself
-      build-args: |
-        APP_VERSION=${{ env.IMAGE_TAG }}
-
-  - name: Output Docker Image Link
-    run: |
-      echo "Successfully pushed image to Docker Hub:"
-      echo "https://hub.docker.com/r/${{ env.DOCKER_HUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}"
-
-
-===============================================
-
-3. DEPLOY GUIDE (Informational Job)
-
-===============================================
-
-deploy_local_guide:
-needs: build_and_push
-runs-on: ubuntu-latest
-steps:
-- name: Deployment Instructions
-run: |
-echo "#########################################################"
-echo "## CI/CD Pipeline Complete: Image is Ready for Deployment"
-echo "#########################################################"
-echo ""
-echo "To deploy the image locally, run these commands:"
-echo "1. Update 'docker-compose.yml' with your Docker Hub username."
-echo "2. Run: docker compose up -d"
-echo "3. Access the app at: http://localhost:8080"
-echo ""
-echo "Image Tag (Commit SHA): ${{ env.IMAGE_TAG }}"
+  # 3. DEPLOY GUIDE (Informational Job)
+  deploy_local_guide:
+    needs: build_and_push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deployment Instructions
+        run: |
+          echo "#########################################################"
+          echo "## CI/CD Pipeline Complete: Image is Ready for Deployment"
+          echo "#########################################################"
+          echo "Image Tag (Commit SHA): ${{ env.IMAGE_TAG }}"
+          echo ""
+          echo "To deploy the image locally, run these commands:"
+          echo "1. Ensure 'docker-compose.yml' uses your Docker Hub username."
+          echo "2. Run: docker compose up -d"
+          echo "3. Access the app at: http://localhost:8080"
